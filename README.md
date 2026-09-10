@@ -1,24 +1,78 @@
 # supermemory-nix
 
-[Nix](https://nixos.org) package + [NixOS](https://nixos.org) service module for [supermemory-server](https://github.com/supermemoryai/supermemory) — the self-hostable AI memory layer.
+[Nix](https://nixos.org) package + [NixOS](https://nixos.org) service module for [supermemory-server](https://github.com/supermemoryai/supermemory) — the self-hostable AI memory layer. **Use it straight from GitHub — no cloning, no manual downloads.**
 
 - **Package** — `supermemory-server` v0.0.8 for `aarch64-linux`, `x86_64-linux`, `aarch64-darwin`, `x86_64-darwin`
 - **NixOS module** — one declarative `services.supermemory` block: LLM provider, local embeddings, persistent DB path, firewall, secrets
 - Local CPU embeddings out of the box (`Xenova/bge-base-en-v1.5`) — no embedding API key needed
 - Fully offline with Ollama / any OpenAI-compatible endpoint on your machine
 
-## Usage (flake)
+## Use it straight from GitHub (no clone)
+
+Everything below references this repo directly — you never have to `git clone`
+or download a binary.
+
+```console
+# run it in one command (starts the server, prints your API key)
+$ nix run github:Ansh-Sonkusare/supermemory-nix
+
+# open a shell with `supermemory-server` on PATH
+$ nix shell github:Ansh-Sonkusare/supermemory-nix
+$ supermemory-server
+
+# install it into your profile
+$ nix profile install github:Ansh-Sonkusare/supermemory-nix
+
+# build the binary locally
+$ nix build github:Ansh-Sonkusare/supermemory-nix
+```
+
+Run it against a local LLM (Ollama / vLLM / LM Studio / any OpenAI-compatible
+endpoint) — fully offline:
+
+```console
+$ OPENAI_API_KEY=dummy \
+  OPENAI_BASE_URL=http://127.0.0.1:11434/v1 \
+  OPENAI_MODEL=llama3 \
+  nix run github:Ansh-Sonkusare/supermemory-nix
+```
+
+It serves on `http://localhost:6767`. First boot prints an API key to the
+terminal; everything hitting localhost is auto-authed, so you're up
+immediately.
+
+### Pin a version (GitHub refs)
+
+Any git ref works — branch, tag or commit:
+
+```console
+$ nix run github:Ansh-Sonkusare/supermemory-nix/main
+$ nix run github:Ansh-Sonkusare/supermemory-nix/85fa814   # pinned commit
+```
+
+### Legacy Nix (flakes disabled)
+
+```console
+$ nix-shell -p '(import (builtins.fetchTarball "https://github.com/Ansh-Sonkusare/supermemory-nix/archive/master.tar.gz") {})'
+```
+
+## Use it in your own flake / NixOS config
+
+Add it as an input and use the overlay, the package, or the service module:
 
 ```nix
 {
   inputs.supermemory-nix.url = "github:Ansh-Sonkusare/supermemory-nix";
 
   outputs = { self, nixpkgs, supermemory-nix }: {
+    devShells.default = pkgs.mkShell {
+      packages = [ supermemory-nix.packages.${pkgs.system}.default ];
+    };
+
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
       modules = [
-        # makes pkgs.supermemory-server available
-        supermemory-nix.overlays.default
-        supermemory-nix.nixosModules.supermemory
+        supermemory-nix.overlays.default           # makes pkgs.supermemory-server available
+        supermemory-nix.nixosModules.supermemory   # services.supermemory
         {
           services.supermemory = {
             enable = true;
@@ -39,30 +93,6 @@
 ```console
 $ nixos-rebuild switch --flake .#myhost
 ```
-
-## Trying the package ad hoc
-
-```console
-$ nix run github:Ansh-Sonkusare/supermemory-nix -- --help
-```
-
-or pin the binary in your dev shell:
-
-```nix
-{
-  inputs.supermemory-nix.url = "github:Ansh-Sonkusare/supermemory-nix";
-  outputs = { supermemory-nix, ... }: {
-    devShells.default = pkgs.mkShell {
-      packages = [ supermemory-nix.packages.${pkgs.system}.supermemory-server ];
-    };
-  };
-}
-```
-
-The server reads its config from the environment; set `OPENAI_API_KEY`
-(e.g. `dummy` for a local endpoint), `OPENAI_BASE_URL`, `OPENAI_MODEL`,
-`GEMINI_API_KEY`, `ANTHROPIC_API_KEY` or `GROQ_API_KEY` and start it — it
-serves on `http://localhost:6767`.
 
 ## Service module options
 
